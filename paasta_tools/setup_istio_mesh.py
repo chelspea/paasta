@@ -29,6 +29,7 @@ import sys
 from typing import AbstractSet
 from typing import List
 from typing import Mapping
+from typing import Sequence
 from typing import Set
 
 import kubernetes.client as k8s
@@ -172,6 +173,37 @@ def setup_paasta_namespace_services(
     return status
 
 
+def cleanup_kube_svc(
+    kube_client: KubeClient,
+    smartstack_namespaces: AbstractSet,
+    existing_svc_names: Set[str],
+) -> Sequence[str]:
+    sanitized_smarstack_namespaces = {
+        sanitise_kubernetes_service_name(namespace)
+        for namespace in smartstack_namespaces
+    }
+
+    gc_services = []
+    if not existing_svc_names:
+        return gc_services
+
+    existing_svc_names = existing_svc_names.difference(sanitized_smarstack_namespaces)
+
+    log.debug(
+        f"Garbage collecting {existing_svc_names} since there is no reference in services.yaml"
+    )
+
+    for svc in existing_svc_names:
+        try:
+            kube_client.core.delete_namespaced_service(
+                name=svc, namespace=PAASTA_NAMESPACE
+            )
+            gc_services.append(svc)
+        except Exception as err:
+            log.warning(f"{err} while trying to grabage collect {svc}")
+    return gc_services
+
+
 def setup_kube_services(
     kube_client: KubeClient,
     rate_limit: int = 0,
@@ -192,7 +224,7 @@ def setup_kube_services(
 
     return setup_paasta_namespace_services(
         kube_client, namespaces.keys(), existing_kube_services_names, rate_limit
-    )
+    ) and cleanup_kube_svc(kube_client, namespaces.keys(), existing_kube_services_names)
 
 
 def main() -> None:
