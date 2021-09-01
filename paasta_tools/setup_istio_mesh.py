@@ -29,7 +29,6 @@ import sys
 from typing import AbstractSet
 from typing import List
 from typing import Mapping
-from typing import Sequence
 from typing import Set
 
 import kubernetes.client as k8s
@@ -177,15 +176,15 @@ def cleanup_kube_svc(
     kube_client: KubeClient,
     smartstack_namespaces: AbstractSet,
     existing_svc_names: Set[str],
-) -> Sequence[str]:
+) -> bool:
     sanitized_smarstack_namespaces = {
         sanitise_kubernetes_service_name(namespace)
         for namespace in smartstack_namespaces
     }
 
-    gc_services = []
+    status = True
     if not existing_svc_names:
-        return gc_services
+        return status
 
     existing_svc_names = existing_svc_names.difference(sanitized_smarstack_namespaces)
 
@@ -198,10 +197,10 @@ def cleanup_kube_svc(
             kube_client.core.delete_namespaced_service(
                 name=svc, namespace=PAASTA_NAMESPACE
             )
-            gc_services.append(svc)
         except Exception as err:
             log.warning(f"{err} while trying to grabage collect {svc}")
-    return gc_services
+            status = False
+    return status
 
 
 def setup_kube_services(
