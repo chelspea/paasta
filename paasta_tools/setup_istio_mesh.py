@@ -26,6 +26,7 @@ import hashlib
 import json
 import logging
 import sys
+import traceback
 from typing import AbstractSet
 from typing import List
 from typing import Mapping
@@ -186,19 +187,19 @@ def cleanup_kube_svc(
     if not existing_svc_names:
         return status
 
-    existing_svc_names = existing_svc_names.difference(sanitized_smarstack_namespaces)
-
-    for svc in existing_svc_names:
+    for svc in existing_svc_names.difference(sanitized_smarstack_namespaces):
         if svc != UNIFIED_K8S_SVC_NAME:
             try:
+                log.info(
+                    f"Garbage collecting {svc} since there is no reference in services.yaml"
+                )
                 kube_client.core.delete_namespaced_service(
                     name=svc, namespace=PAASTA_NAMESPACE
                 )
-                log.debug(
-                    f"Garbage collecting {svc} since there is no reference in services.yaml"
-                )
+
             except Exception as err:
-                log.warning(f"{err} while trying to grabage collect {svc}")
+                log.warning(f"{err} while trying to garbage collect {svc}")
+                traceback.print_exc()
                 status = False
     return status
 
@@ -219,6 +220,7 @@ def setup_kube_services(
             )
         except Exception as err:
             log.error(f"{err} while setting up unified service")
+            traceback.print_exc()
             return False
 
     return setup_paasta_namespace_services(
