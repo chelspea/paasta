@@ -188,18 +188,18 @@ def cleanup_kube_svc(
 
     existing_svc_names = existing_svc_names.difference(sanitized_smarstack_namespaces)
 
-    log.debug(
-        f"Garbage collecting {existing_svc_names} since there is no reference in services.yaml"
-    )
-
     for svc in existing_svc_names:
-        try:
-            kube_client.core.delete_namespaced_service(
-                name=svc, namespace=PAASTA_NAMESPACE
-            )
-        except Exception as err:
-            log.warning(f"{err} while trying to grabage collect {svc}")
-            status = False
+        if svc != UNIFIED_K8S_SVC_NAME:
+            try:
+                kube_client.core.delete_namespaced_service(
+                    name=svc, namespace=PAASTA_NAMESPACE
+                )
+                log.debug(
+                    f"Garbage collecting {svc} since there is no reference in services.yaml"
+                )
+            except Exception as err:
+                log.warning(f"{err} while trying to grabage collect {svc}")
+                status = False
     return status
 
 
